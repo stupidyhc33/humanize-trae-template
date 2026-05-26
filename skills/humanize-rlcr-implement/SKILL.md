@@ -35,16 +35,23 @@ description: 按 RLCR（Ralph-Loop with Codex Review）方法论执行 docs/plan
 ##### B（默认）— 外部 CLI 跨模型审查
 按以下顺序探测可用工具，**第一个可用即采用，不再尝试后续**：
 
-1. **B.1 — codex CLI**（最贴近原项目）
-   - 探测：`command -v codex && codex --version`
-   - 调用：
+1. **B.1 — codex CLI**（最贴近原项目，已实测可用）
+   - 探测：`command -v codex && codex --version` → 应输出 `codex-cli 0.x.x`
+   - 前置：本轮代码改动需先 `git add -A`（codex review 读 staged + unstaged + untracked）
+   - 调用（**新版 0.133+ 语法，--uncommitted 不接受 PROMPT**）：
      ```bash
-     codex exec --model gpt-5.5:high \
-       --cd "$PWD" \
-       --output .humanize/rlcr/round-N/codex-review.txt \
-       "$(cat .humanize/rlcr/round-N/.review-prompt.md)"
+     # codex review 自带审查 prompt，零参数模式即可
+     codex review --uncommitted 2>&1 \
+       | tee .humanize/rlcr/round-N/codex-review.txt
      ```
-   - 把 stdout 同时落到 `.humanize/rlcr/round-N/codex-review.txt`。
+   - 想注入自定义 plan/AC 引导，**不能**用 `--uncommitted`，改用 `codex exec`：
+     ```bash
+     codex exec --skip-git-repo-check \
+       "$(cat .humanize/rlcr/round-N/.review-prompt.md)" 2>&1 \
+       | tee .humanize/rlcr/round-N/codex-review.txt
+     ```
+   - 实测产出会在 `codex` 段落里给出 BLOCKER/MAJOR/MINOR 级别的发现 + 验证建议。
+   - 已知噪声（可忽略）：`xcrun_db: Operation not permitted`、`PATH update failed` 是 macOS TCC 拦 git/PATH 写缓存，**不影响 review 结论**。
 
 2. **B.2 — gemini CLI**
    - 探测：`command -v gemini && gemini --version`

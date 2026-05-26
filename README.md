@@ -312,14 +312,22 @@ Model:    <实际模型名>
 ### 安装外部 CLI（启用默认路径）
 
 ```bash
-# Codex CLI（推荐）
-brew install codex            # 或参考 https://github.com/openai/codex
-codex auth login
+# Codex CLI（推荐，已实测 0.133.0 可用）
+brew install codex
+codex login                   # 走 OAuth；新版无 auth 子命令
+codex review --uncommitted    # 实测：会读取 git 改动并独立审查
 
 # Gemini CLI（备选）
 npm install -g @google/gemini-cli
 gemini auth login
 ```
+
+> **重要**：Codex 0.133+ 的命令结构与早期版本不同：
+> - `codex auth login` 已改为 `codex login`
+> - `codex review --uncommitted` **不接受**额外 PROMPT 参数（自带 review 提示）
+> - 想注入 plan/AC 引导请用 `codex exec --skip-git-repo-check "..."`
+>
+> macOS 上若看到 `WARNING: PATH update failed (Operation not permitted)` 或 `xcrun_db: Operation not permitted`，是 TCC 拦截写缓存，**不影响审查结果**。
 
 装完之后无需改 config，下次 RLCR 自动走 B 路径。
 
