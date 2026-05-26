@@ -25,6 +25,17 @@ description: 按 RLCR（Ralph-Loop with Codex Review）方法论执行 docs/plan
 
 ### Phase 2 — Independent Review（每轮）
 **关键：以独立审查者视角，不复用本轮实现的假设。**
+
+#### 审查者选择（按优先级）
+1. **方案 B（首选，若可用）**：本机装有 `codex` CLI 时，调用
+   ```bash
+   codex exec --model gpt-5.5:high "<review prompt>"
+   ```
+   把结果落到 `.humanize/rlcr/round-N/codex-review.txt`。这等价于原项目的 `ask-codex.sh`。
+2. **方案 A（默认回退）**：用 Trae 内置 **Task tool**，`subagent_type=general_purpose_task` 派一个**全新上下文**的子 agent 做审查。子 agent 没有主对话历史，只能看到你显式传入的 plan + 改动文件清单，从而获得最大化的"独立性"。**禁止复用本轮 Phase 1 的对话上下文做审查。**
+3. **降级方案 C**：若以上都不可用（极少见），明确告知用户当前是"自审模式 / self-review"，质量会下降。
+
+#### 审查流程（无论用哪种审查者）
 1. 对每条 AC 实际跑一次命令，记录 stdout/stderr 与判定。
 2. 读源码寻找：
    - 与 plan/AC 不一致的地方
@@ -38,6 +49,7 @@ description: 按 RLCR（Ralph-Loop with Codex Review）方法论执行 docs/plan
    建议: ...
    ```
    严重度：`BLOCKER` / `MAJOR` / `MINOR` / `NIT`。
+4. review.md 文件头必须标注本轮审查者类型：`Reviewer: codex-cli | trae-subagent | self-review`。
 
 ### Phase 3 — Decision
 - 无 BLOCKER / MAJOR 且全部 AC 通过 → **收敛，结束**。

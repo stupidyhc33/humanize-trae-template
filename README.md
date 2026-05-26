@@ -276,13 +276,29 @@ rm -rf .humanize docs/plan.template.md
 
 | humanize（Claude Code） | 本模板 | 备注 |
 |---|---|---|
-| `commands/gen-plan.md` | `skills/humanize-gen-plan/SKILL.md` | 改写为 Trae Skill frontmatter |
-| `commands/rlcr-implement.md` | `skills/humanize-rlcr-implement/SKILL.md` | 同上 |
-| `marketplace.json` | — | Trae 不需要插件市场注册 |
-| `hooks/` | — | 用 Skill description 中的"触发条件"代替 |
+| `skills/humanize-gen-plan` | `skills/humanize-gen-plan` | ✅ 已移植，改写为 Trae Skill frontmatter |
+| `skills/humanize-refine-plan` | `skills/humanize-refine-plan` | ✅ 已移植，剥离 Claude 专属 hooks，保留 CMT/QA 核心契约 |
+| `skills/humanize-rlcr` | `skills/humanize-rlcr-implement` | ✅ 已移植，合并了 `commands/start-rlcr-loop` |
+| `skills/humanize` | — | 入口引导，Trae 用 SKILL frontmatter 描述代替 |
+| `skills/ask-codex` | 内嵌于 `humanize-rlcr-implement` Phase 2 方案 B | 仅在本机装了 `codex` CLI 时启用 |
+| `skills/ask-gemini` | — | 暂未移植，可在 Phase 2 加方案 D |
+| `commands/*.md` | — | Trae 不需要 slash 命令，靠 Skill description 触发 |
+| `agents/*.md` | 由 Trae 内置 `Task tool` + `subagent_type` 替代 | 无需移植 |
+| `hooks/` | — | Trae 用 Skill description 中的"触发条件"代替 |
 | `scripts/humanize.sh` | `shared/scripts/humanize.sh` | 直接复用 |
 | `templates/plan.md` | `shared/templates/plan.md` | 直接复用 |
-| `agents/` | — | Trae 用 Task tool + subagent_type 内建 |
+
+## 独立审查（RLCR 的灵魂）
+
+> ⚠️ **请认真读这一节。** RLCR 的核心是"实现者 ≠ 审查者"，否则就退化成了 self-review。
+
+| 审查方案 | 异构模型 | 上下文隔离 | 启用条件 | 何时使用 |
+|---|---|---|---|---|
+| **B（首选）** Codex CLI | ✅ Codex GPT-5.5 vs Trae | ✅ 跨进程 | 本机装 `codex` 并 `codex auth login` | 想最贴近原项目 |
+| **A（默认回退）** Trae Task tool 子 agent | ❌ 同模型 | ✅ 全新上下文 | 零依赖 | 大多数场景 |
+| **C（降级）** Self-review | ❌ | ❌ | 前两者都不可用 | 不推荐，仅做兜底 |
+
+`humanize-rlcr-implement` 在 Phase 2 会自动按 B → A → C 的优先级选择审查者，并在 `review.md` 头部标注 `Reviewer: codex-cli | trae-subagent | self-review`。
 
 ---
 
