@@ -3,11 +3,21 @@ set -euo pipefail
 
 PROJECT_DIR="${1:-.}"
 PRESET="${2:-generic}"
-SHARED_DIR="$HOME/.trae/skills/humanize-shared"
 TEMPLATE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# 自动探测 Trae skill 根目录：~/.trae-cn/skills（CN 版）→ ~/.trae/skills（海外版）
+detect_skill_root() {
+  if [[ -n "${TRAE_SKILLS_DIR:-}" ]]; then echo "$TRAE_SKILLS_DIR"; return; fi
+  if [[ -d "$HOME/.trae-cn/skills" ]]; then echo "$HOME/.trae-cn/skills"; return; fi
+  if [[ -d "$HOME/.trae/skills" ]]; then echo "$HOME/.trae/skills"; return; fi
+  if [[ -d "$HOME/.trae-cn" ]]; then echo "$HOME/.trae-cn/skills"; return; fi
+  echo "$HOME/.trae/skills"
+}
+SKILL_ROOT="$(detect_skill_root)"
+SHARED_DIR="$SKILL_ROOT/humanize-shared"
+
 if [[ ! -d "$SHARED_DIR" ]]; then
-  echo "⚠️  全局共享资产缺失，正在自动安装…"
+  echo "⚠️  全局共享资产缺失（$SHARED_DIR），正在自动安装…"
   bash "$TEMPLATE_DIR/install-global.sh"
 fi
 
@@ -37,6 +47,7 @@ cat > "$PROJECT_DIR/.humanize/README.md" <<MD
 # Humanize 工作流已就位
 
 预设：$PRESET
+全局 skill 目录：$SKILL_ROOT
 
 下一步在 Trae 对话中调用：
 - humanize-gen-idea "你的想法"
@@ -49,4 +60,4 @@ cat > "$PROJECT_DIR/.humanize/README.md" <<MD
   humanize monitor rlcr
 MD
 
-echo "✅ Humanize 工作流已初始化于 $PROJECT_DIR（preset=$PRESET）"
+echo "✅ Humanize 工作流已初始化于 $PROJECT_DIR（preset=$PRESET, skill_root=$SKILL_ROOT）"

@@ -65,7 +65,7 @@ humanize 原本是 Claude Code 插件，依赖 marketplace / commands / hooks �
 
 ## 安装
 
-**前置条件**：macOS / Linux，已安装 `git`、`bash`，以及 [Trae 编辑器](https://trae.ai)。
+**前置条件**：macOS / Linux，已安装 `git`、`bash`，以及 [Trae 编辑器](https://trae.ai)（海外版或 CN 版均可）。
 
 ```bash
 # 1. 克隆模板仓
@@ -76,15 +76,26 @@ cd humanize-trae-template
 bash install-global.sh
 ```
 
-成功后看到：
+脚本会**自动探测** skill 目录：
+
+| 优先级 | 目录 | 适用 |
+|---|---|---|
+| 1 | `$TRAE_SKILLS_DIR`（环境变量） | 自定义 |
+| 2 | `~/.trae-cn/skills/` | Trae CN 国内版 |
+| 3 | `~/.trae/skills/` | Trae 海外版 |
+
+成功示例输出：
 
 ```
-✅ 全局 Humanize Skill 已安装至 /Users/<you>/.trae/skills
+📍 检测到 Trae skill 目录：/Users/<you>/.trae-cn/skills
+✅ 全局 Humanize Skill 已安装至 /Users/<you>/.trae-cn/skills
    - skills: humanize-gen-plan humanize-rlcr-implement
-   - shared: /Users/<you>/.trae/skills/humanize-shared
+   - shared: /Users/<you>/.trae-cn/skills/humanize-shared
 ```
 
-**重启 Trae 编辑器**，让它重新加载 `~/.trae/skills/`，之后即可在对话中触发。
+**重启 Trae 编辑器**，让它重新加载 skill 目录，之后即可在对话中触发。
+
+> 💡 自定义路径：`TRAE_SKILLS_DIR=/your/path bash install-global.sh`
 
 ---
 
@@ -278,7 +289,9 @@ rm -rf .humanize docs/plan.template.md
 ## 常见问题
 
 **Q1：装完重启 Trae，对话里触发不了 skill。**
-确认 `~/.trae/skills/humanize-rlcr-implement/SKILL.md` 存在，且 frontmatter `name`、`description` 完整。Trae 是按 description 语义匹配的，建议在指令里**显式带上 skill 名**触发。
+- 先确认你装的是 CN 版还是海外版：CN 版目录是 `~/.trae-cn/skills/`，海外版是 `~/.trae/skills/`，本脚本已自动探测。
+- 检查对应目录下 `humanize-rlcr-implement/SKILL.md` 是否存在，且 frontmatter `name`、`description` 完整。
+- Trae 是按 description 语义匹配的，建议在指令里**显式带上 skill 名**触发。
 
 **Q2：`init.sh` 提示"全局共享资产缺失"。**
 说明你跳过了第一步。它会自动尝试调 `install-global.sh` 修复，如失败请检查 `~/.trae/` 是否有写权限。
