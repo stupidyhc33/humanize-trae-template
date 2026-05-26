@@ -238,7 +238,8 @@ humanize-trae-template/
 ```json
 {
   "preset": "python",
-  "review_model": "gpt-5.5",
+  "reviewer": "auto",
+  "review_model": "gpt-5.5:high",
   "alternative_plan_language": "zh-CN",
   "max_rounds": 5
 }
@@ -247,9 +248,12 @@ humanize-trae-template/
 | 字段 | 含义 | 默认 |
 |---|---|---|
 | `preset` | 语言/框架预设，影响 init 时拷哪些资产 | `generic` |
-| `review_model` | RLCR Phase 2 审查阶段使用的模型标记（提示用） | `gpt-5.5` |
+| `reviewer` | RLCR Phase 2 审查者：`auto` / `codex` / `gemini` / `trae-subagent` / `self` | `auto` |
+| `review_model` | 当 reviewer 为 codex/gemini 时使用的具体模型 | `gpt-5.5:high` |
 | `alternative_plan_language` | 写作语言偏好 | `zh-CN` |
 | `max_rounds` | 单次 RLCR 最大轮次 | `5` |
+
+> `reviewer: auto` 时按 B.1 → B.2 → A → C 探测；显式值则**不可用即报错**，不会静默降级。
 
 ---
 
@@ -280,8 +284,8 @@ rm -rf .humanize docs/plan.template.md
 | `skills/humanize-refine-plan` | `skills/humanize-refine-plan` | ✅ 已移植，剥离 Claude 专属 hooks，保留 CMT/QA 核心契约 |
 | `skills/humanize-rlcr` | `skills/humanize-rlcr-implement` | ✅ 已移植，合并了 `commands/start-rlcr-loop` |
 | `skills/humanize` | — | 入口引导，Trae 用 SKILL frontmatter 描述代替 |
-| `skills/ask-codex` | 内嵌于 `humanize-rlcr-implement` Phase 2 方案 B | 仅在本机装了 `codex` CLI 时启用 |
-| `skills/ask-gemini` | — | 暂未移植，可在 Phase 2 加方案 D |
+| `skills/ask-codex` | 内嵌于 `humanize-rlcr-implement` Phase 2 默认路径 B.1 | 探测到 `codex` CLI 自动启用 |
+| `skills/ask-gemini` | 内嵌于 `humanize-rlcr-implement` Phase 2 默认路径 B.2 | 探测到 `gemini` CLI 自动启用 |
 | `commands/*.md` | — | Trae 不需要 slash 命令，靠 Skill description 触发 |
 | `agents/*.md` | 由 Trae 内置 `Task tool` + `subagent_type` 替代 | 无需移植 |
 | `hooks/` | — | Trae 用 Skill description 中的"触发条件"代替 |
@@ -292,13 +296,40 @@ rm -rf .humanize docs/plan.template.md
 
 > ⚠️ **请认真读这一节。** RLCR 的核心是"实现者 ≠ 审查者"，否则就退化成了 self-review。
 
-| 审查方案 | 异构模型 | 上下文隔离 | 启用条件 | 何时使用 |
+| 审查方案 | 异构模型 | 上下文隔离 | 启用条件 | 角色 |
 |---|---|---|---|---|
-| **B（首选）** Codex CLI | ✅ Codex GPT-5.5 vs Trae | ✅ 跨进程 | 本机装 `codex` 并 `codex auth login` | 想最贴近原项目 |
-| **A（默认回退）** Trae Task tool 子 agent | ❌ 同模型 | ✅ 全新上下文 | 零依赖 | 大多数场景 |
-| **C（降级）** Self-review | ❌ | ❌ | 前两者都不可用 | 不推荐，仅做兜底 |
+| **B.1 Codex CLI**（默认首选） | ✅ Codex GPT-5.5 vs Trae | ✅ 跨进程 | 本机装 `codex` 并 `codex auth login` | **默认路径** |
+| **B.2 Gemini CLI**（默认次选） | ✅ Gemini 2.5 Pro vs Trae | ✅ 跨进程 | 本机装 `gemini` 并完成认证 | **默认路径**（B.1 不可用时自动启用） |
+| **A Trae Task tool 子 agent** | ❌ 同模型 | ✅ 全新上下文 | 零依赖 | **升级路径**（B 都不可用时启用，或显式 `"reviewer": "trae-subagent"`） |
+| **C Self-review** | ❌ | ❌ | 前两者都不可用 | 兜底，不推荐 |
 
-`humanize-rlcr-implement` 在 Phase 2 会自动按 B → A → C 的优先级选择审查者，并在 `review.md` 头部标注 `Reviewer: codex-cli | trae-subagent | self-review`。
+`humanize-rlcr-implement` 在 Phase 2 自动探测优先级 **B.1 → B.2 → A → C**，并在 `review.md` 头部标注：
+```
+Reviewer: codex-cli | gemini-cli | trae-subagent | self-review
+Model:    <实际模型名>
+```
+
+### 安装外部 CLI（启用默认路径）
+
+```bash
+# Codex CLI（推荐）
+brew install codex            # 或参考 https://github.com/openai/codex
+codex auth login
+
+# Gemini CLI（备选）
+npm install -g @google/gemini-cli
+gemini auth login
+```
+
+装完之后无需改 config，下次 RLCR 自动走 B 路径。
+
+### 强制走升级路径（A）
+
+在项目的 `.humanize/config.json` 设：
+```json
+{ "reviewer": "trae-subagent" }
+```
+这会**跳过** B 探测，直接派 Trae 子 agent 做审查。适合调试 / 离线 / 不想耗外部 API 配额的场景。
 
 ---
 

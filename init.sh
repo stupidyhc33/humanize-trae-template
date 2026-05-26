@@ -37,7 +37,8 @@ fi
 cat > "$PROJECT_DIR/.humanize/config.json" <<JSON
 {
   "preset": "$PRESET",
-  "review_model": "gpt-5.5",
+  "reviewer": "auto",
+  "review_model": "gpt-5.5:high",
   "alternative_plan_language": "zh-CN",
   "max_rounds": 5
 }

@@ -26,14 +26,79 @@ description: 按 RLCR（Ralph-Loop with Codex Review）方法论执行 docs/plan
 ### Phase 2 — Independent Review（每轮）
 **关键：以独立审查者视角，不复用本轮实现的假设。**
 
-#### 审查者选择（按优先级）
-1. **方案 B（首选，若可用）**：本机装有 `codex` CLI 时，调用
-   ```bash
-   codex exec --model gpt-5.5:high "<review prompt>"
-   ```
-   把结果落到 `.humanize/rlcr/round-N/codex-review.txt`。这等价于原项目的 `ask-codex.sh`。
-2. **方案 A（默认回退）**：用 Trae 内置 **Task tool**，`subagent_type=general_purpose_task` 派一个**全新上下文**的子 agent 做审查。子 agent 没有主对话历史，只能看到你显式传入的 plan + 改动文件清单，从而获得最大化的"独立性"。**禁止复用本轮 Phase 1 的对话上下文做审查。**
-3. **降级方案 C**：若以上都不可用（极少见），明确告知用户当前是"自审模式 / self-review"，质量会下降。
+#### 审查者优先级（默认顺序，可被 `.humanize/config.json` 的 `reviewer` 字段覆盖）
+
+> **默认路径 = 外部 CLI 跨模型审查（B）**
+> **升级路径 = Trae 内置 Task tool 同模型异上下文审查（A）**
+> **兜底 = self-review（C），仅当前两者都无法启动时**
+
+##### B（默认）— 外部 CLI 跨模型审查
+按以下顺序探测可用工具，**第一个可用即采用，不再尝试后续**：
+
+1. **B.1 — codex CLI**（最贴近原项目）
+   - 探测：`command -v codex && codex --version`
+   - 调用：
+     ```bash
+     codex exec --model gpt-5.5:high \
+       --cd "$PWD" \
+       --output .humanize/rlcr/round-N/codex-review.txt \
+       "$(cat .humanize/rlcr/round-N/.review-prompt.md)"
+     ```
+   - 把 stdout 同时落到 `.humanize/rlcr/round-N/codex-review.txt`。
+
+2. **B.2 — gemini CLI**
+   - 探测：`command -v gemini && gemini --version`
+   - 调用：
+     ```bash
+     gemini --model gemini-2.5-pro \
+       --prompt-file .humanize/rlcr/round-N/.review-prompt.md \
+       > .humanize/rlcr/round-N/gemini-review.txt
+     ```
+
+**审查 prompt 模板**（写到 `.humanize/rlcr/round-N/.review-prompt.md` 后再喂给 CLI）：
+```
+你是独立代码审查者。**不要信任**给定的实现思路；只信代码、plan、AC。
+
+任务：
+1. 读 docs/plan.md，列出所有 AC 编号。
+2. 读以下改动文件（路径列表见下），逐文件检查与 plan/AC 的一致性、边界条件、错误路径、兼容性、安全。
+3. 对每条 AC 给出一个可执行验证命令。
+4. 输出为 review.md 格式：每条发现一行 `[SEVERITY] R<N>-<id>: <title>` + 位置 + 现象 + 建议。
+   严重度：BLOCKER / MAJOR / MINOR / NIT。
+5. 末尾给 Verdict：✅ 收敛 或 ❌ 需迭代。
+
+改动文件清单：
+<由 Phase 1 的 summary.md 自动生成>
+
+plan 内容（粘贴整个 docs/plan.md）：
+<inline>
+```
+
+##### A（升级路径）— Trae Task tool 同模型异上下文
+当 B.1/B.2 都未安装、或用户显式在 `config.json` 设 `"reviewer": "trae-subagent"` 时启用。
+
+调用方式：用 Trae 内置 **Task tool**，参数：
+- `subagent_type`: `general_purpose_task`
+- `description`: `"RLCR Phase 2 review for round-N"`
+- `query`: 上面那段"审查 prompt 模板"（plan 内容 + 改动文件清单 inline 注入）
+- `response_language`: 与 plan 一致
+
+子 agent 没有主对话历史，**严禁**把 Phase 1 的实现说明、设计思路传进去——只给 plan + 文件路径，让它自己读。
+
+##### C（兜底）— Self-review
+仅当 B、A 均不可用时使用，且**必须在 review.md 头部用红色标记声明 `⚠️ Reviewer: self-review（质量降级）`**，并提示用户尽快安装 codex/gemini CLI。
+
+#### 配置覆盖
+用户可在 `.humanize/config.json` 加：
+```json
+{
+  "reviewer": "auto",          // auto | codex | gemini | trae-subagent | self
+  "review_model": "gpt-5.5:high",
+  "max_rounds": 5
+}
+```
+- `auto`（默认）：按 B.1 → B.2 → A → C 探测。
+- 显式值：跳过探测，直接用指定方案；不可用时**报错而非静默降级**。
 
 #### 审查流程（无论用哪种审查者）
 1. 对每条 AC 实际跑一次命令，记录 stdout/stderr 与判定。
@@ -49,7 +114,11 @@ description: 按 RLCR（Ralph-Loop with Codex Review）方法论执行 docs/plan
    建议: ...
    ```
    严重度：`BLOCKER` / `MAJOR` / `MINOR` / `NIT`。
-4. review.md 文件头必须标注本轮审查者类型：`Reviewer: codex-cli | trae-subagent | self-review`。
+4. review.md 文件头必须标注本轮审查者类型与模型：
+   ```
+   Reviewer: codex-cli | gemini-cli | trae-subagent | self-review
+   Model:    <实际模型名，例如 gpt-5.5:high / gemini-2.5-pro / 同主模型>
+   ```
 
 ### Phase 3 — Decision
 - 无 BLOCKER / MAJOR 且全部 AC 通过 → **收敛，结束**。
