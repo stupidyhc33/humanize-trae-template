@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# 演练/测试产物
+.humanize/
+docs/plan.md
+greet.py
+
+# 编辑器
+.idea/
+.vscode/
+
+# 日志
+*.log
