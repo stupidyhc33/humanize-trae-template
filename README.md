@@ -16,6 +16,7 @@
   - [2. 在 Trae 对话中触发](#2-在-trae-对话中触发)
   - [3. 外部终端实时监控](#3-外部终端实时监控)
 - [完整端到端示例](#完整端到端示例)
+- [开新项目工作流（Quick Start）](#开新项目工作流quick-start)
 - [目录结构](#目录结构)
 - [配置项](#配置项)
 - [升级与卸载](#升级与卸载)
@@ -205,6 +206,95 @@ my-cli/
 ```
 
 > 上面这个例子在本仓库的 commit 历史里跑通过：发现 PEP 604 联合类型 `list[str] | None` 在旧 Python 不兼容（BLOCKER R1-001），第 2 轮加 `from __future__ import annotations` 收敛。
+
+---
+
+## 开新项目工作流（Quick Start）
+
+> 已经装过模板（一次性）+ 想立刻在新项目里跑 RLCR 的最短路径。**复制即用**。
+
+### 前置（一次性）
+
+```bash
+# ① 克隆模板到非 Desktop 目录（避免 macOS TCC 拦截）
+mkdir -p ~/code
+git clone https://github.com/stupidyhc33/humanize-trae-template.git ~/code/humanize-trae-template
+
+# ② 把 3 个 skill 装到 Trae 全局
+bash ~/code/humanize-trae-template/install-global.sh
+# 预期：✅ 全局 Humanize Skill 已安装至 ~/.trae-cn/skills （CN 版）或 ~/.trae/skills （海外版）
+
+# ③（推荐）装 Codex CLI 启用真·跨模型独立审查
+brew install codex
+codex login                    # 走 OAuth；新版无 auth 子命令
+codex review --uncommitted     # 自检：进入任意 git 仓库执行，能输出审查结论即 OK
+```
+
+> Codex 0.133+ 命令注意：`codex auth login` 已改为 `codex login`；`codex review --uncommitted` **不接受**额外 PROMPT；macOS 上的 `xcrun_db: Operation not permitted` 是噪声，不影响功能。
+
+### 每个新项目（5 步循环）
+
+```bash
+# ① 建项目 + git baseline（RLCR 强约束工作区是干净 git 仓库）
+mkdir ~/code/my-feature && cd ~/code/my-feature
+git init && git commit --allow-empty -m baseline
+
+# ② 一键拷入 .humanize/ 工作目录 + 选预设
+bash ~/code/humanize-trae-template/init.sh . python
+# 可选预设：generic / python / nodejs / go
+
+# ③ 把需求写成 idea
+cat > .humanize/ideas/foo.md <<'EOF'
+做一个 X 工具：输入 ...，输出 ...
+EOF
+```
+
+```text
+# ④ 打开 Trae（cwd 指向 ~/code/my-feature），在对话里说：
+用 humanize-gen-plan 把 .humanize/ideas/foo.md 转成 docs/plan.md
+
+# ⑤ plan 满意后，再说：
+用 humanize-rlcr-implement 跑 docs/plan.md
+```
+
+Trae 会按 SKILL.md 契约自动执行：
+- **Phase 0** Preflight（git 干净度 + 提取 AC）
+- **Phase 1** 实现 → 写 `.humanize/rlcr/round-N/summary.md`
+- **Phase 2** 独立审查（按 B.1 codex → B.2 gemini → A trae-subagent → C self-review 优先级，自动选最强）→ 写 `round-N/review.md`
+- **Phase 3** 决策：无 BLOCKER/MAJOR 即收敛；否则 Round N+1 回 Phase 1
+
+### 验证审查路径走对了
+
+打开任意一轮 `review.md`，看头部：
+
+```
+Reviewer: codex-cli      ← B.1 默认路径已生效（真·跨模型）
+Model:    gpt-5.5
+```
+
+| 看到的 Reviewer | 含义 |
+|---|---|
+| `codex-cli` | ✅ 默认路径，Codex GPT-5.5 在另一个进程独立审查 |
+| `gemini-cli` | ✅ 默认路径备选 |
+| `trae-subagent` | 升级路径，同模型 / 全新上下文（codex/gemini 没装时自动启用） |
+| `self-review` | 兜底，质量降级；建议立刻装 codex CLI |
+
+### 可选：监控 RLCR 进度
+
+```bash
+# 在另一个终端 source 一次（也可写进 ~/.zshrc）
+source ~/.trae-cn/skills/humanize-shared/scripts/humanize.sh
+humanize monitor    # 实时看 round-N 产物变化
+humanize status     # 当前 round / verdict 概览
+```
+
+### 想强制走升级路径（A）？
+
+在项目的 `.humanize/config.json` 设：
+```json
+{ "reviewer": "trae-subagent" }
+```
+跳过 codex/gemini 探测，直接派 Trae 内置子 agent。适合离线 / 不想耗外部 API 配额。
 
 ---
 
